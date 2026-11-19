@@ -22,19 +22,47 @@
 
 #pragma once
 
-#include "utilities.h"
+#include <stdlib.h>
+#include <stdbool.h>
+
+typedef enum
+{
+	kOutputDistributionIndexSmallTree = 0,
+	kOutputDistributionIndexTwoTrain,
+	kOutputDistributionIndexHipps,
+	kOutputDistributionIndexSeriesSystem,
+	kOutputDistributionIndexMax,
+} OutputDistributionIndex;
 
 /**
- *	@brief	Calculate output by evaluating PRA fault tree models.
+ *	@brief	UxHw-mode calculation kernel. Evaluates the selected PRA fault
+ *		tree model(s) once. The distributional basic event probabilities
+ *		propagate through the tree via the UxHw API.
  *
- *	For each selected output (-S), builds the corresponding fault tree
- *	model, creates distributional basic event probabilities via the UxHw
- *	API, and evaluates the tree to produce the top-event probability.
- *
- *	@param	arguments	: Pointer to command line arguments struct.
+ *	@param	outputSelect	: Index of the output to calculate, or
+ *				  `kOutputDistributionIndexMax` for all outputs.
  *	@param	outputVariables	: The output variables.
  */
 void
-calculateOutput(
-	CommandLineArguments *  arguments,
-	double *                outputVariables);
+calculateOutputUxHw(
+	size_t      outputSelect,
+	double *    outputVariables);
+
+/**
+ *	@brief	Monte Carlo calculation kernel. Evaluates the selected PRA fault
+ *		tree model `numberOfMonteCarloIterations` times. Each evaluation
+ *		draws a single sample for every basic event probability, and the
+ *		selected output is stored in `monteCarloOutputSamples`.
+ *
+ *	@param	numberOfMonteCarloIterations	: Number of Monte Carlo iterations to run.
+ *	@param	outputSelect		: Index of the output to calculate. A
+ *					  single output, as Monte Carlo mode requires.
+ *	@param	outputVariables		: The output variables.
+ *	@param	monteCarloOutputSamples	: Array of `numberOfMonteCarloIterations` doubles, filled with samples.
+ */
+void
+calculateOutputMonteCarlo(
+	size_t      numberOfMonteCarloIterations,
+	size_t      outputSelect,
+	double *    outputVariables,
+	double *    monteCarloOutputSamples);

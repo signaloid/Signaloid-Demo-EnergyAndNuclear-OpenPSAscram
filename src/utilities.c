@@ -61,7 +61,7 @@ printUsage(void)
  *	@param	arguments	: command line arguments pointer.
  *	@return			: `kCommonConstantReturnTypeSuccess` if successful, else `kCommonConstantReturnTypeError`.
  */
-static CommonConstantReturnType
+CommonConstantReturnType
 setDefaultCommandLineArguments(CommandLineArguments * arguments)
 {
 	if (arguments == NULL)
@@ -89,9 +89,56 @@ setDefaultCommandLineArguments(CommandLineArguments * arguments)
 	return kCommonConstantReturnTypeSuccess;
 }
 
+#ifdef NO_OS_AVAILABLE
+CommonConstantReturnType
+setNoOSCommandLineArguments(CommandLineArguments * arguments)
+{
+	if (arguments == NULL)
+	{
+		fputs("Error: The provided pointer to arguments is NULL.\n", stderr);
+
+		return kCommonConstantReturnTypeError;
+	}
+
+	/*
+	 *	Start from the defaults so that every demo-specific field is
+	 *	initialized, then override the ones the no-OS build fixes. The
+	 *	`common` sub-struct is zeroed by this call, so it is set explicitly
+	 *	below.
+	 */
+	if (setDefaultCommandLineArguments(arguments) != kCommonConstantReturnTypeSuccess)
+	{
+		return kCommonConstantReturnTypeError;
+	}
+
+	arguments->common.numberOfMonteCarloIterations  = 1;
+	arguments->common.outputSelect                  = kOutputDistributionIndexMax;
+	arguments->common.isTimingEnabled               = false;
+	arguments->common.isMonteCarloMode              = false;
+	arguments->common.isOutputJSONMode              = false;
+	arguments->common.isWriteToFileEnabled          = false;
+
+	return kCommonConstantReturnTypeSuccess;
+}
+#endif
+
 CommonConstantReturnType
 getCommandLineArguments(int argc, char *  argv[], CommandLineArguments *  arguments)
 {
+#ifdef NO_OS_AVAILABLE
+	/*
+	 *	The no-OS build has no command line to parse, so ignore `argc` and
+	 *	`argv` and use the hard-coded configuration instead.
+	 */
+	(void) argc;
+	(void) argv;
+
+	puts("Using hard coded command line arguments");
+
+	return setNoOSCommandLineArguments(arguments);
+
+#else
+
 	if (arguments == NULL)
 	{
 		fprintf(stderr, "Error: The provided pointer to arguments is NULL.\n");
@@ -134,13 +181,13 @@ getCommandLineArguments(int argc, char *  argv[], CommandLineArguments *  argume
 
 	/*
 	 *	When `outputSelect` is set to `kOutputDistributionIndexMax`, we cannot be
-	 *	in benchmarking mode or Monte Carlo mode.
+	 *	in Monte Carlo mode.
 	 */
 	if (arguments->common.outputSelect == kOutputDistributionIndexMax)
 	{
-		if ((arguments->common.isBenchmarkingMode) || (arguments->common.isMonteCarloMode))
+		if (arguments->common.isMonteCarloMode)
 		{
-			fprintf(stderr, "Error: Please select a single output when in benchmarking mode or Monte Carlo mode.\n");
+			fprintf(stderr, "Error: Please select a single output when in Monte Carlo mode.\n");
 
 			return kCommonConstantReturnTypeError;
 		}
@@ -161,4 +208,6 @@ getCommandLineArguments(int argc, char *  argv[], CommandLineArguments *  argume
 	}
 
 	return kCommonConstantReturnTypeSuccess;
+
+#endif
 }

@@ -1,13 +1,13 @@
 MinimumCore:
       Class: C0Pro
-      Microarchitecture: Jupiter
-      CorrelationTracking: Disable
+      Microarchitecture: Mercury
+      DependencyTracking: Advanced
       MemorySize: 256000
       Precision: 64
 
 TraceVariables:
     - File: "main.c"
-      LineNumber: 39
+      LineNumber: 45
       Expression: "outputVariables[0:3]"
 
 BenchmarkingVariables:
@@ -15,18 +15,26 @@ BenchmarkingVariables:
       VariableDescription: SmallTree top-event probability
       OutputObject: Distribution
       CommandLineArguments: -S 0
+      RepresentationTypes: [Rome]
+      DependencyTracking: [None]
     - VariableName: outputVariables[1]
       VariableDescription: TwoTrain top-event probability
       OutputObject: Distribution
       CommandLineArguments: -S 1
+      RepresentationTypes: [Rome]
+      DependencyTracking: [None]
     - VariableName: outputVariables[2]
       VariableDescription: HIPPS top-event probability
       OutputObject: Distribution
       CommandLineArguments: -S 2
+      RepresentationTypes: [Mercury]
+      DependencyTracking: [Advanced]
     - VariableName: outputVariables[3]
       VariableDescription: SeriesSystem top-event probability
       OutputObject: Distribution
       CommandLineArguments: -S 3
+      RepresentationTypes: [Rome]
+      DependencyTracking: [None]
 
 BenchmarkingAllOutputs:
     - CommandLineArguments: -S 4

@@ -83,14 +83,19 @@ evaluateModel(PraFaultTreeModel * model)
 	return praEvaluateFaultTree(model->topGate, basicEventProbabilities, model->numberOfBasicEvents);
 }
 
-void
-calculateOutput(
-	CommandLineArguments *  arguments,
-	double *                outputVariables)
+/*
+ *	Evaluate the selected output(s) once. The math is identical in UxHw
+ *	and Monte Carlo modes: the UxHw API returns a full distribution in
+ *	UxHw mode and a single sample in Monte Carlo mode.
+ */
+static void
+calculateOutputOnce(
+	size_t      outputSelect,
+	double *    outputVariables)
 {
-	bool calculateAllOutputs = (arguments->common.outputSelect == kOutputDistributionIndexMax);
+	bool calculateAllOutputs = (outputSelect == kOutputDistributionIndexMax);
 
-	if (calculateAllOutputs || (arguments->common.outputSelect == kOutputDistributionIndexSmallTree))
+	if (calculateAllOutputs || (outputSelect == kOutputDistributionIndexSmallTree))
 	{
 		PraFaultTreeModel model;
 
@@ -98,7 +103,7 @@ calculateOutput(
 		outputVariables[kOutputDistributionIndexSmallTree] = evaluateModel(&model);
 	}
 
-	if (calculateAllOutputs || (arguments->common.outputSelect == kOutputDistributionIndexTwoTrain))
+	if (calculateAllOutputs || (outputSelect == kOutputDistributionIndexTwoTrain))
 	{
 		PraFaultTreeModel model;
 
@@ -106,7 +111,7 @@ calculateOutput(
 		outputVariables[kOutputDistributionIndexTwoTrain] = evaluateModel(&model);
 	}
 
-	if (calculateAllOutputs || (arguments->common.outputSelect == kOutputDistributionIndexHipps))
+	if (calculateAllOutputs || (outputSelect == kOutputDistributionIndexHipps))
 	{
 		PraFaultTreeModel model;
 
@@ -114,12 +119,38 @@ calculateOutput(
 		outputVariables[kOutputDistributionIndexHipps] = evaluateModel(&model);
 	}
 
-	if (calculateAllOutputs || (arguments->common.outputSelect == kOutputDistributionIndexSeriesSystem))
+	if (calculateAllOutputs || (outputSelect == kOutputDistributionIndexSeriesSystem))
 	{
 		PraFaultTreeModel model;
 
 		praBuildSeriesSystemModel(&model);
 		outputVariables[kOutputDistributionIndexSeriesSystem] = evaluateModel(&model);
+	}
+
+	return;
+}
+
+void
+calculateOutputUxHw(
+	size_t      outputSelect,
+	double *    outputVariables)
+{
+	calculateOutputOnce(outputSelect, outputVariables);
+
+	return;
+}
+
+void
+calculateOutputMonteCarlo(
+	size_t      numberOfMonteCarloIterations,
+	size_t      outputSelect,
+	double *    outputVariables,
+	double *    monteCarloOutputSamples)
+{
+	for (size_t ii = 0; ii < numberOfMonteCarloIterations; ++ii)
+	{
+		calculateOutputOnce(outputSelect, outputVariables);
+		monteCarloOutputSamples[ii] = outputVariables[outputSelect];
 	}
 
 	return;
