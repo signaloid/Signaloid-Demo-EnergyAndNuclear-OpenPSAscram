@@ -31,29 +31,41 @@
 #include "utilities.h"
 #include "kernel.h"
 
+#ifdef NO_OS_AVAILABLE
+
+void
+returnZeroNoOS(void);
+#endif
+
 
 int
 main(int argc, char *  argv[])
 {
-	CommandLineArguments    arguments = (CommandLineArguments) { 0 };
-	double                  outputVariables[kOutputDistributionIndexMax];
-	const char *            outputVariableNames[kOutputDistributionIndexMax] = {
+	CommandLineArguments            arguments = (CommandLineArguments) { 0 };
+	double                          outputVariables[kOutputDistributionIndexMax] = { 0 };
+	const char *                    outputVariableNames[kOutputDistributionIndexMax] = {
 		"SmallTree",
 		"TwoTrain",
 		"HIPPS",
 		"SeriesSystem"
 	};
-	const char *            outputVariableDescriptions[kOutputDistributionIndexMax] = {
+	const char *                    outputVariableDescriptions[kOutputDistributionIndexMax] = {
 		"SmallTree: (e1*e2)+(e3*e4)",
 		"TwoTrain: redundant train system",
 		"HIPPS: safety system with 2-of-3 voting",
 		"SeriesSystem: 5-event series"
 	};
-	const char *            applicationDescription  = "Example application for reliability estimation of nuclear power plant systems.";
-	double *                monteCarloOutputSamples = NULL;
-	clock_t                 start                   = 0;
-	clock_t                 end                     = 0;
-	double                  cpuTimeUsedInSeconds    = 0.0;
+	const kOutputVariableTypeIndex  outputVariableTypes[kOutputDistributionIndexMax] = {
+		kOutputVariableTypeDistribution,
+		kOutputVariableTypeDistribution,
+		kOutputVariableTypeDistribution,
+		kOutputVariableTypeDistribution
+	};
+	const char *                    applicationDescription  = "Example application for reliability estimation of nuclear power plant systems.";
+	double *                        monteCarloOutputSamples = NULL;
+	clock_t                         start                   = 0;
+	clock_t                         end                     = 0;
+	double                          cpuTimeUsedInSeconds    = 0.0;
 
 	/*
 	 *	Get command line arguments.
@@ -75,6 +87,8 @@ main(int argc, char *  argv[])
 		);
 	}
 
+	const bool isScalarOutputSelected = isSelectedOutputScalar(&arguments.common, outputVariableTypes, kOutputDistributionIndexMax);
+
 	/*
 	 *	Start timing if timing is enabled.
 	 */
@@ -84,22 +98,22 @@ main(int argc, char *  argv[])
 	}
 
 	/*
-	 *	Execute process kernel in a loop. The size of loop is 1 unless in Monte Carlo mode.
+	 *	Dispatch to the mode-specific kernel. The Monte Carlo loop lives
+	 *	inside `calculateOutputMonteCarlo`. UxHw mode runs a single
+	 *	distributional evaluation inside `calculateOutputUxHw`.
 	 */
-	for (size_t ii = 0; ii < arguments.common.numberOfMonteCarloIterations; ++ii)
+	if (arguments.common.isMonteCarloMode)
 	{
-		/*
-		 *	Execute process kernel.
-		 */
-		calculateOutput(&arguments, outputVariables);
-
-		/*
-		 *	If in Monte Carlo mode, populate `monteCarloOutputSamples`.
-		 */
-		if (arguments.common.isMonteCarloMode)
-		{
-			monteCarloOutputSamples[ii] = outputVariables[arguments.common.outputSelect];
-		}
+		calculateOutputMonteCarlo(
+			arguments.common.numberOfMonteCarloIterations,
+			arguments.common.outputSelect,
+			outputVariables,
+			monteCarloOutputSamples
+		);
+	}
+	else
+	{
+		calculateOutputUxHw(arguments.common.outputSelect, outputVariables);
 	}
 
 	/*
@@ -122,7 +136,8 @@ main(int argc, char *  argv[])
 			outputVariables,
 			outputVariableNames,
 			kOutputDistributionIndexMax,
-			applicationDescription
+			applicationDescription,
+			outputVariableTypes
 		);
 	}
 	/*
@@ -136,7 +151,8 @@ main(int argc, char *  argv[])
 			outputVariables,
 			outputVariableNames,
 			outputVariableDescriptions,
-			monteCarloOutputSamples
+			monteCarloOutputSamples,
+			outputVariableTypes
 		);
 	}
 
@@ -156,7 +172,7 @@ main(int argc, char *  argv[])
 		saveMonteCarloDoubleDataToDataDotOutFile(
 			monteCarloOutputSamples,
 			(uint64_t) (cpuTimeUsedInSeconds * 1000000),
-			arguments.common.numberOfMonteCarloIterations
+			isScalarOutputSelected ? 1 : arguments.common.numberOfMonteCarloIterations
 		);
 	}
 	/*
@@ -188,5 +204,11 @@ main(int argc, char *  argv[])
 		free(monteCarloOutputSamples);
 	}
 
+#ifdef NO_OS_AVAILABLE
+	returnZeroNoOS();
+#else
+
 	return EXIT_SUCCESS;
+
+#endif
 }

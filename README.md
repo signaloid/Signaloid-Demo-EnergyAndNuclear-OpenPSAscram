@@ -2,9 +2,9 @@
 [<img src="https://assets.signaloid.io/add-to-signaloid-cloud-logo-light-latest.png#gh-light-mode-only" alt="[Add to signaloid.io]" height="30">](https://signaloid.io/repositories?connect=https://github.com/signaloid/Signaloid-Demo-EnergyAndNuclear-OpenPSAscram#gh-light-mode-only)
 
 
-# PRA Fault Tree Uncertainty Propagation with Signaloid UxHw® Support
+# PRA Fault Tree Distribution Arithmetic with Signaloid UxHw® Support
 
-This application propagates the uncertainty in basic event failure
+This application propagates the distributions of basic event failure
 probabilities through four fault tree models from nuclear probabilistic risk
 assessment (PRA), with support for Signaloid's distributional arithmetic
 (UxHw) as an alternative to traditional Monte Carlo sampling. The models are
@@ -13,7 +13,7 @@ from the SCRAM input corpus. The repository has been structured to fit within
 the
 [Signaloid UxHw benchmarking template](https://github.com/signaloid/Signaloid-Demo-Benchmarking-C-Template.git),
 allowing direct comparison between traditional Monte Carlo sampling and
-Signaloid's single-pass uncertainty tracking on the Signaloid Cloud
+Signaloid's single-pass distribution arithmetic on the Signaloid Cloud
 Compute Engine (SCCE).
 
 
@@ -49,6 +49,11 @@ make local-run                # Build and run all 4 outputs with timing
 ./demo-native-mc -M 10000 -S 0 -j    # SmallTree with JSON output
 ```
 
+The native build uses gcc by default. Clang is also supported. To build with clang, run
+```bash
+make local-build CC=clang
+```
+
 ## Overview
 
 In traditional Monte Carlo mode (`-M N`), the application draws N independent
@@ -58,19 +63,19 @@ probabilities. `-M 1` is a one-sample Monte Carlo run, not the UxHw mode.
 
 In UxHw single-shot mode (no `-M`, on the Signaloid Cloud Compute Engine), the
 application sets each basic event probability to its full distribution once
-and evaluates the fault tree in a single pass. Signaloid's uncertainty-tracking
+and evaluates the fault tree in a single pass. Signaloid's distribution arithmetic
 hardware propagates the distributions through the gate arithmetic, so the
 top-event probability is itself a distribution. Natively the same mode runs
 against the compatibility layer and yields one random sample.
 
-The uncertainty here is epistemic. The failure probability of each basic
+The distribution here is epistemic. The failure probability of each basic
 event is not known exactly, and its distribution describes the spread of
-estimates for it. This is the quantity that the Monte Carlo uncertainty
+estimates for it. This is the quantity that the Monte Carlo
 analysis in SCRAM and other Open-PSA tools samples.
 
 ## Fault tree models
 
-The four models are small, so the point is the uncertainty propagation rather
+The four models are small, so the point is the distribution arithmetic rather
 than the model size. Full definitions, basic event parameters, and the gate
 formulas are in [`docs/FAULT_TREE_MODELS.md`](docs/FAULT_TREE_MODELS.md).
 
@@ -83,9 +88,9 @@ formulas are in [`docs/FAULT_TREE_MODELS.md`](docs/FAULT_TREE_MODELS.md).
 
 Every basic event is lognormal, given as a mean, an error factor, and a 0.95
 confidence level, following the convention of NUREG/CR-6823. Gate evaluation
-is plain arithmetic with no branch on a probability value. The AND and OR
-gates use each child once, so their distributional propagation is exact on
-every core. The K-of-N gate reuses each child in several subset terms, so its
+is plain arithmetic with no branch on a probability value. The AND gates, like the OR
+gates, use each child once, so their distributional propagation is exact on
+every core. The K-of-N gate reuses each child in more than one subset term, so its
 propagation is exact only on a core that tracks correlation. See
 [Correlation handling](#correlation-handling).
 
@@ -117,6 +122,11 @@ make local-run                # Build and run all 4 outputs with timing
 ./demo-native-mc -M 10000 -S 0 -j    # JSON output
 ```
 
+The native build uses gcc by default. Clang is also supported. To build with clang, run
+```bash
+make local-build CC=clang
+```
+
 ### Command-line options
 ```
 Common options:
@@ -128,13 +138,41 @@ Common options:
                    CSV inputs, every basic event is defined in the source
   -o <path>        Write the outputs to a CSV file
   -T               Enable timing
-  -b               Benchmarking output format
   -j               JSON output mode
   -v               Verbose (accepted but not supported by this demo)
   -h               Help
 ```
 
 This demo adds no options of its own.
+
+## Usage
+
+Run `./demo-native-mc -h` to print the options:
+```
+PRA Fault Tree Uncertainty Propagation Demo
+
+Evaluates fault tree models from nuclear probabilistic risk assessment
+with uncertain basic event probabilities (lognormal distributions).
+
+Available models (-S):
+  0: SmallTree     — (e1*e2) + (e3*e4), 4 events, 3 gates
+  1: TwoTrain      — Redundant train system, 4 events, 3 gates
+  2: HIPPS         — Safety system with 2-of-3 voting, 6 events, 3 gates
+  3: SeriesSystem  — 5-event series, 5 events, 1 gate
+  4: All outputs
+
+Usage: Valid command-line arguments are:
+	[-i, --input <Path to input CSV file : str>] (Read inputs from file.)
+	[-o, --output <Path to output CSV file : str>] (Specify the output file.)
+	[-S, --select-output <output : int>] (Compute 0-indexed output, by default 0. Set to the number of outputs to compute all outputs.)
+	[-M, --multiple-executions <Number of executions : int (Default: 1)>] (Repeatedly execute kernel for benchmarking. Also enables timing.)
+	[-T, --time] (Timing mode: Times and prints the timing of the kernel execution.)
+	[-v, --verbose] (Verbose mode: Prints extra information about demo execution.)
+	[-j, --json] (Print output in JSON format.)
+	[-h, --help] (Display this help message.)
+```
+
+The help text is generic. Without `-S` the UxHw kernel computes all outputs. Local Monte Carlo mode needs both `-S` and `-M`, and `-M` has no default there.
 
 ## Architecture
 
@@ -157,13 +195,13 @@ pra-models.c (build tree)
 
 ### Correlation handling
 The code makes no independence calls and leaves every correlation to the
-core. The basic events are independent, and the AND and OR gates use each
-child once, so the SmallTree, TwoTrain and SeriesSystem outputs are exact on
-every core. The K-of-N gate in HIPPS sums four subset terms that share the
-same three sensor probabilities, so those terms are correlated. On a core
-that tracks correlation the HIPPS output matches Monte Carlo. On a core that
-treats operands as independent, such as Athens with correlation tracking
-disabled, the HIPPS mean is still exact but its spread is understated by
+core. The basic events are independent, and the AND gates, like the OR gates,
+use each child once, so the SmallTree, TwoTrain and SeriesSystem outputs are
+exact on every core. The K-of-N gate in HIPPS sums four subset terms that
+share the same three sensor probabilities, so those terms are correlated. On
+a core that tracks correlation the HIPPS output matches Monte Carlo. On a core
+that treats operands as independent, such as Rome with dependency tracking
+set to None, the HIPPS mean is still exact but its spread is understated by
 about 6 percent.
 
 
@@ -178,20 +216,20 @@ This project bridges nuclear PRA fault tree analysis and Signaloid (hardware-acc
 
 2. **Rauzy, A.** (1993). "New algorithms for fault trees analysis." *Reliability Engineering & System Safety*, 40(3), 203--211. DOI: [10.1016/0951-8320(93)90060-C](https://doi.org/10.1016/0951-8320(93)90060-C). Introduces the BDD-based methods for exact fault tree probability calculation used by the SCRAM analysis engine.
 
-### PRA parameter estimation
+### Parameter estimation
 
-3. **Atwood, C. L., LaChance, J. L., Martz, H. F., Anderson, D. J., Englehardt, M., Whitehead, D., and Wheeler, T.** (2003). *Handbook of Parameter Estimation for Probabilistic Risk Assessment*. NUREG/CR-6823, SAND2003-3348P. U.S. Nuclear Regulatory Commission. [nrc.gov](https://www.nrc.gov/reading-rm/doc-collections/nuregs/contract/cr6823/). Defines the lognormal parameterization (mean, error factor, confidence level) used for the basic event failure probabilities in this implementation.
+3. **Atwood, C. L., LaChance, J. L., Martz, H. F., Anderson, D. J., Englehardt, M., Whitehead, D., and Wheeler, T.** (2003). *Handbook of Parameter Estimation for Probabilistic Risk Assessment*. NUREG/CR-6823, SAND2003-3348P. U.S. Nuclear Regulatory Commission. [nrc.gov](https://www.nrc.gov/reading-rm/doc-collections/nuregs/contract/cr6823/). Defines the lognormal parameters (mean, error factor, confidence level) used for the basic event failure probabilities in this implementation.
 
-### Open-PSA and SCRAM
+### Model exchange and SCRAM
 
 4. **Open-PSA Initiative.** *Model Exchange Format (MEF) v2.0*, Chapter 5, Stochastic Layer. [open-psa.github.io/mef](https://open-psa.github.io/mef/). Specifies the standard for representing probabilistic risk models, including the random deviate types and fault tree gate definitions.
 
 5. **Rakhimov, O.** *SCRAM: Command-line Risk Analysis Multi-tool*. [github.com/rakhimov/scram](https://github.com/rakhimov/scram). An open-source PRA tool implementing the Open-PSA MEF, and the source of the SmallTree model.
 
-### Signaloid and uncertainty-tracking computation
+### Signaloid and distribution arithmetic
 
 6. **Tsoutsouras, V., Kaparounakis, O., Bilgin, B., Samarakoon, C., Meech, J., Heck, J., and Stanley-Marbell, P.** (2021). "The Laplace Microarchitecture for Tracking Data Uncertainty and Its Implementation in a RISC-V Processor." In *MICRO-54: 54th Annual IEEE/ACM International Symposium on Microarchitecture*, pp. 1254--1269. ACM. DOI: [10.1145/3466752.3480131](https://doi.org/10.1145/3466752.3480131). This is the foundational paper for Signaloid's technology, introducing the Laplace microarchitecture that tracks probability distributions through computation on a RISC-V processor and defining the ISA extensions that became the UxHw API.
 
-7. **Bilgin, B. A., Elias, O. H., Selby, M., and Stanley-Marbell, P.** (2025). "Quantization of Probability Distributions via Divide-and-Conquer: Convergence and Error Propagation under Distributional Arithmetic Operations." arXiv preprint arXiv:2505.15283. DOI: [10.48550/arXiv.2505.15283](https://doi.org/10.48550/arXiv.2505.15283). Provides mathematical foundations for how Signaloid's processor discretizes continuous probability distributions, with error bounds for distributional arithmetic operations.
+7. **Bilgin, B. A., Elias, O. H., Selby, M., and Stanley-Marbell, P.** (2025). "Quantization of Probability Distributions via Divide-and-Conquer: Convergence and Error Propagation under Distributional Arithmetic Operations." arXiv preprint arXiv:2505.15283. DOI: [10.48550/arXiv.2505.15283](https://doi.org/10.48550/arXiv.2505.15283). Provides mathematical foundations for how Signaloid's processor approximates continuous probability distributions with discrete ones, with error bounds for distributional arithmetic operations.
 
 8. **Signaloid.** *UxHw API Documentation*. [docs.signaloid.io/docs/uxhw-api](https://docs.signaloid.io/docs/uxhw-api/). Documents the UxHw API functions (`UxHwDoubleLognormalDist` and the other distribution constructors) used to create the distributional values that the Signaloid C0 processor propagates through arithmetic.
